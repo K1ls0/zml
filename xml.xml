@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tagStart>
+    <tagEnd b="bb" a="aa" />
+    <tag2>
+        <tagint />
+    </tag2>
+</tagStart>
