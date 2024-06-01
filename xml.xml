@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!---lsdkjflskjflswekjrwoih ;c-->
 <tagStart>
+    This is some text
     <tagEnd b="bb" a="aa" />
     <tag2>
+        What about this?
         <tagint />
     </tag2>
 </tagStart>

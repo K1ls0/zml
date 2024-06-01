@@ -4,7 +4,7 @@ const mem = std.mem;
 
 const ParseState = @import("parse_state.zig").ParseState;
 
-// TODO
+// TODO(Paul): explicit UTF-8-support
 pub fn parseIdent(parse_state: *ParseState, reader: anytype) !?[]const u8 {
     var s = std.ArrayListUnmanaged(u8){};
     defer s.deinit(parse_state.alloc);

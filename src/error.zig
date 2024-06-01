@@ -14,4 +14,5 @@ pub const ZmlError = error{
     UnmatchedTagName,
     XmlPrologUnexpectedAttr,
     XmlPrologEncodingVersionNotGiven,
+    XmlPrologUnexpectedIdent,
 } || std.mem.Allocator.Error;

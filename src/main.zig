@@ -11,7 +11,17 @@ pub fn main() !void {
 
     const alloc = gpa.allocator();
     //const expect = std.testing.expect;
-    const xmlconf_file = try std.fs.cwd().openFile(xmlconf_fname, .{ .mode = .read_only });
+    const filename = blk: {
+        var args = std.process.args();
+        const exec_name = args.next() orelse unreachable;
+        const filename = args.next() orelse {
+            std.debug.print("Usage: {s} <filename>\n", .{exec_name});
+            std.process.exit(1);
+        };
+        break :blk filename;
+    };
+
+    const xmlconf_file = try std.fs.cwd().openFile(filename, .{ .mode = .read_only });
     defer xmlconf_file.close();
 
     const file = try xmlconf_file.readToEndAlloc(alloc, std.math.maxInt(u64));
@@ -21,19 +31,31 @@ pub fn main() !void {
     var state = zml.ParseState.init(alloc);
     defer state.deinit();
 
-    const prolog, var elements = try parseDocument(alloc, xmlconf_fname);
+    const prolog, var elements = try parseDocument(alloc, filename);
     defer if (prolog) |p| p.deinit(alloc);
     defer {
-        for (elements.items) |*item| {
+        var it = elements.iterator(0);
+        while (it.next()) |item| {
             item.deinit(alloc);
         }
         elements.deinit(alloc);
     }
+
+    log.info("prolog: {?any}", .{prolog});
     if (prolog) |p| {
         std.debug.print("Prolog version='{s}' encoding='{s}'\n", .{ p.version, p.encoding });
     }
-    for (elements.items) |elem| {
-        printTag(&elem, .{});
+    {
+        const stdout = std.io.getStdOut();
+        defer stdout.close();
+        var buffered_writer = std.io.bufferedWriter(stdout.writer());
+        const w = buffered_writer.writer();
+
+        var it = elements.iterator(0);
+        while (it.next()) |item| {
+            try zml.debug.printContent(item, w, .{});
+        }
+        try buffered_writer.flush();
     }
 
     //var state = zml.ParseState{};
@@ -42,7 +64,7 @@ pub fn main() !void {
 
 fn parseDocument(alloc: mem.Allocator, fname: []const u8) !struct {
     ?zml.XmlProlog,
-    std.ArrayListUnmanaged(zml.Element),
+    zml.Element.ContentList,
 } {
     const file = try std.fs.cwd().openFile(
         fname,
@@ -54,51 +76,23 @@ fn parseDocument(alloc: mem.Allocator, fname: []const u8) !struct {
     var reader = std.io.bufferedReader(file.reader());
     const r = reader.reader();
 
-    const prolog = try zml.parse_state.parseXmlProlog(&state, r);
+    try state.consumeWhiteSpaces(r, .any);
+
+    const prolog = zml.parseXmlProlog(&state, r) catch |e| {
+        log.err("Error occured at line {}, column {}", .{ state.line, state.col });
+        return e;
+    };
     errdefer if (prolog) |p| p.deinit(alloc);
 
-    var elements = std.ArrayListUnmanaged(zml.Element){};
-    errdefer {
-        for (elements.items) |*item| {
-            item.deinit(alloc);
-        }
-        elements.deinit(alloc);
-    }
+    const content = zml.parseContent(&state, r) catch |e| {
+        log.err("Error occured at line {}, column {}", .{ state.line, state.col });
+        log.err("current char: {?c}", .{try state.peek(r)});
+        return e;
+    };
 
-    while (try zml.parse_state.parseTag(&state, r)) |tag| {
-        try elements.append(alloc, tag);
-    }
     //try state.consumeWhiteSpaces(r, .any);
     return .{
         prolog,
-        elements,
+        content,
     };
-}
-
-const PrintTagOptions = struct {
-    depth: usize = 0,
-};
-fn printTag(tag: *const zml.Element, options: PrintTagOptions) void {
-    std.debug.print("<{s}", .{tag.tag});
-    {
-        var it = tag.attrs.constIterator(0);
-        while (it.next()) |item| {
-            std.debug.print(" '{s}'='{s}'", .{ item.name, item.value });
-        }
-    }
-    std.debug.print(">", .{});
-    if (tag.children.len > 0) {
-        std.debug.print("\n", .{});
-        var it = tag.children.constIterator(0);
-        while (it.next()) |content| {
-            for (0..options.depth + 1) |_| std.debug.print("\t", .{});
-            switch (content.*) {
-                .elem => |*elem| printTag(elem, .{ .depth = options.depth + 1 }),
-                .txt => |txt| std.debug.print("text: [{s}]", .{txt}),
-                .comment => unreachable,
-            }
-        }
-        for (0..options.depth) |_| std.debug.print("\t", .{});
-    }
-    std.debug.print("</{s}>\n", .{tag.tag});
 }

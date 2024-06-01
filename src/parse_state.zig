@@ -7,10 +7,11 @@ const element = @import("element.zig");
 const ident = @import("ident.zig");
 const string = @import("string.zig");
 
-pub const Element = element.Element;
+const Element = element.Element;
 
 pub const ErrorValue = union(enum) {
     none,
+    simple: struct { line: usize, col: usize },
 };
 
 pub const ParseState = struct {
@@ -24,16 +25,8 @@ pub const ParseState = struct {
     line: usize = 1,
     col: usize = 1,
 
-    occured_error: ErrorValue = .none,
+    error_value: ErrorValue = .none,
     buf: std.ArrayListUnmanaged(u8) = .{},
-
-    // This structure stores the stack of tag names, that are currently on hold, the
-    // string will not be copied, it is just a pointer to the slice that was allocated
-    // at the beginning of the tag, therefor the slice is expected to still be alive
-    // when popped.
-    _tag_stack: std.SegmentedList(element.Element, 16) = .{},
-
-    //state: State = .normal,
 
     pub fn init(alloc: std.mem.Allocator) Self {
         return Self{
@@ -43,7 +36,6 @@ pub const ParseState = struct {
     }
     pub fn deinit(self: *Self) void {
         self.buf.deinit(self.alloc);
-        self._tag_stack.deinit(self.alloc);
     }
 
     pub fn consumeChar(self: *Self, reader: anytype, to_match: u8) (ZmlError || @TypeOf(reader).Error)!bool {
@@ -121,22 +113,8 @@ pub const ParseState = struct {
         return c;
     }
 
-    pub inline fn extractBuffer(self: *Self) mem.Allocator.Error![]const u8 {
-        return try self.buf.toOwnedSlice();
-    }
-
-    pub inline fn pushTag(self: *Self, tagname: []const u8) ZmlError!void {
-        try self._tag_stack.append(self.alloc, tagname);
-    }
-
-    pub fn peekTag(self: *Self) ?[]const u8 {
-        const count = self._tag_stack.count();
-        if (count == 0) return null;
-        return self._tag_stack.at(count - 1).*;
-    }
-
-    pub fn popTag(self: *Self) ?[]const u8 {
-        return self._tag_stack.pop();
+    pub inline fn setError(self: *Self, e: ErrorValue) void {
+        self.error_value = e;
     }
 
     /// Expect one byte, also returning an error if the end of input is reached
@@ -145,29 +123,70 @@ pub const ParseState = struct {
     }
 };
 
-//pub const State = enum {
-//    normal,
-//    document,
-//
-//    tag_start,
-//    tag_name_open_or_close_or_special,
-//    tag_name,
-//    tag_close,
-//    tag_special_question,
-//    tag_special_exclamation_mark,
-//    tag_comment_dash1,
-//    tag_comment_dash2,
-//
-//    tag_attr_key_or_end,
-//    tag_attr_eq,
-//    tag_attr_value,
-//
-//    string,
-//};
+pub const XmlProlog = struct {
+    version: []const u8,
+    encoding: []const u8,
+
+    pub fn deinit(self: @This(), allocator: mem.Allocator) void {
+        allocator.free(self.version);
+        allocator.free(self.encoding);
+    }
+};
+
+pub fn parseComment(s: *ParseState, r: anytype) (ZmlError || @TypeOf(r).Error)!?[]const u8 {
+    if ((try s.peek(r) orelse return null) != '<') return null;
+    if ((try s.peek2(r) orelse return null) != '!') return null;
+    if (!try s.consumeChar(r, '<')) return null;
+    if (!try s.consumeChar(r, '!')) return null;
+    if (!try s.consumeChar(r, '-')) return ZmlError.UnexpectedChar;
+    if (!try s.consumeChar(r, '-')) return ZmlError.UnexpectedChar;
+
+    var state: enum { normal, dash0, dash1 } = .normal;
+
+    try s.consumeWhiteSpaces(r, .any);
+
+    var str = std.ArrayListUnmanaged(u8){};
+    defer str.deinit(s.alloc);
+
+    while_blk: while (true) {
+        const c = try s.next(r) orelse return ZmlError.UnexpectedEndOfInput;
+        switch (state) {
+            .normal => switch (c) {
+                '-' => {
+                    state = .dash0;
+                },
+                else => try str.append(s.alloc, c),
+            },
+            .dash0 => switch (c) {
+                '-' => state = .dash1,
+                else => {
+                    state = .normal;
+                    try str.appendSlice(s.alloc, &.{ '-', c });
+                },
+            },
+            .dash1 => switch (c) {
+                '>' => break :while_blk,
+                else => {
+                    state = .normal;
+                    try str.appendSlice(s.alloc, &.{ '-', '-', c });
+                },
+            },
+        }
+    }
+
+    while (str.items.len > 0 and spec.isXmlWhitespace(str.getLast())) {
+        _ = str.pop();
+    }
+
+    return try str.toOwnedSlice(s.alloc);
+}
 
 pub fn parseTag(s: *ParseState, r: anytype) (ZmlError || @TypeOf(r).Error)!?element.Element {
     if ((try s.peek(r) orelse return null) != '<') return null;
-    if ((try s.peek2(r) orelse return null) == '/') return null;
+    switch (try s.peek2(r) orelse return null) {
+        '/', '?', '!' => return null,
+        else => {},
+    }
     if (!try s.consumeChar(r, '<')) return null;
 
     try s.consumeWhiteSpaces(r, .any);
@@ -215,23 +234,8 @@ pub fn parseTag(s: *ParseState, r: anytype) (ZmlError || @TypeOf(r).Error)!?elem
     if (!try s.consumeChar(r, '>')) return ZmlError.ExpectedEndOfTag;
 
     // parse children
-    var content = Element.ContentList{};
+    var content = try parseContent(s, r);
     errdefer content.deinit(s.alloc);
-    while_blk: while (true) {
-        try s.consumeWhiteSpaces(r, .any);
-
-        if (try parseText(s, r)) |txt| {
-            try content.append(s.alloc, element.ContentPart{ .txt = txt });
-            continue;
-        }
-
-        if (try parseTag(s, r)) |tag| {
-            try content.append(s.alloc, element.ContentPart{ .elem = tag });
-            continue;
-        }
-
-        break :while_blk;
-    }
 
     try s.consumeWhiteSpaces(r, .any);
 
@@ -252,6 +256,33 @@ pub fn parseTag(s: *ParseState, r: anytype) (ZmlError || @TypeOf(r).Error)!?elem
         .attrs = attributes,
         .children = content,
     };
+}
+
+pub fn parseContent(s: *ParseState, r: anytype) (ZmlError || @TypeOf(r).Error)!Element.ContentList {
+    var content = Element.ContentList{};
+    errdefer content.deinit(s.alloc);
+    while_blk: while (true) {
+        try s.consumeWhiteSpaces(r, .any);
+
+        if (try parseComment(s, r)) |comment| {
+            try content.append(s.alloc, element.ContentPart{ .comment = comment });
+            continue;
+        }
+
+        if (try parseTag(s, r)) |tag| {
+            try content.append(s.alloc, element.ContentPart{ .elem = tag });
+            continue;
+        }
+
+        if (try parseText(s, r)) |txt| {
+            try content.append(s.alloc, element.ContentPart{ .txt = txt });
+            continue;
+        }
+
+        break :while_blk;
+    }
+
+    return content;
 }
 
 pub fn parseText(
@@ -314,21 +345,19 @@ pub fn parseText(
     return try parse_state.alloc.dupe(u8, trimmed);
 }
 
-pub const XmlProlog = struct {
-    version: []const u8,
-    encoding: []const u8,
-
-    pub fn deinit(self: @This(), allocator: mem.Allocator) void {
-        allocator.free(self.version);
-        allocator.free(self.encoding);
-    }
-};
-
 pub fn parseXmlProlog(s: *ParseState, r: anytype) (ZmlError || @TypeOf(r).Error)!?XmlProlog {
     if ((try s.peek(r) orelse return null) != '<') return null;
-    if ((try s.peek2(r) orelse return null) == '?') return null;
+    if ((try s.peek2(r) orelse return null) != '?') return null;
     if (!try s.consumeChar(r, '<')) return null;
     if (!try s.consumeChar(r, '?')) return null;
+
+    try s.consumeWhiteSpaces(r, .any);
+
+    {
+        const id = try ident.parseIdent(s, r) orelse return null;
+        defer s.alloc.free(id);
+        if (!std.ascii.eqlIgnoreCase(id, "xml")) return ZmlError.XmlPrologUnexpectedIdent;
+    }
 
     try s.consumeWhiteSpaces(r, .any);
 
@@ -353,14 +382,8 @@ pub fn parseXmlProlog(s: *ParseState, r: anytype) (ZmlError || @TypeOf(r).Error)
         if (std.ascii.eqlIgnoreCase(attrname, "version")) {
             version = attrvalue;
         } else if (std.ascii.eqlIgnoreCase(attrname, "encoding")) {
-            encoding = encoding;
+            encoding = attrvalue;
         } else return ZmlError.XmlPrologUnexpectedAttr;
-    }
-
-    if (encoding == null or version == null) {
-        if (encoding) |str| s.alloc.free(str);
-        if (version) |str| s.alloc.free(str);
-        return ZmlError.XmlPrologEncodingVersionNotGiven;
     }
 
     try s.consumeWhiteSpaces(r, .any);
@@ -368,8 +391,8 @@ pub fn parseXmlProlog(s: *ParseState, r: anytype) (ZmlError || @TypeOf(r).Error)
     if (!try s.consumeChar(r, '>')) return ZmlError.UnexpectedChar;
 
     return XmlProlog{
-        .version = version orelse unreachable,
-        .encoding = encoding orelse unreachable,
+        .version = version orelse return ZmlError.XmlPrologEncodingVersionNotGiven,
+        .encoding = encoding orelse return ZmlError.XmlPrologEncodingVersionNotGiven,
     };
 }
 

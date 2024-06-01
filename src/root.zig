@@ -2,19 +2,24 @@ const std = @import("std");
 const mem = std.mem;
 const testing = std.testing;
 
-pub const token = @import("token.zig");
-pub const parse_state = @import("parse_state.zig");
-pub const string = @import("string.zig");
-pub const element = @import("element.zig");
+pub const debug = @import("debug.zig");
 
-pub const ZmlError = @import("error.zig").ZmlError;
-
+const parse_state = @import("parse_state.zig");
 pub const ParseState = parse_state.ParseState;
+pub const ErrorValue = parse_state.ErrorValue;
 pub const XmlProlog = parse_state.XmlProlog;
-pub const Token = token.Token;
+pub const parseContent = parse_state.parseContent;
+pub const parseXmlProlog = parse_state.parseXmlProlog;
 
+const element = @import("element.zig");
 pub const Element = element.Element;
 pub const Attr = element.Attr;
+pub const ContentPart = element.ContentPart;
+
+//pub const token = @import("token.zig");
+//pub const Token = token.Token;
+
+pub const ZmlError = @import("error.zig").ZmlError;
 
 test {
     _ = @import("element.zig");
@@ -25,4 +30,5 @@ test {
     _ = @import("string.zig");
     _ = @import("token.zig");
     _ = @import("xmlspec.zig");
+    _ = @import("debug.zig");
 }

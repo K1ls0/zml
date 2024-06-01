@@ -44,7 +44,7 @@ pub fn parseString(
                     esc_buf_len = 0;
                 },
                 '"' => break,
-                '<', '>', '\'' => return ZmlError.UnexpectedChar,
+                '<', '>' => return ZmlError.UnexpectedChar,
                 else => try s.append(parse_state.alloc, cc),
             },
             .escaped => switch (cc) {
