@@ -245,6 +245,7 @@ pub fn parseTag(s: *ParseState, r: anytype) (ZmlError || @TypeOf(r).Error)!?elem
     try s.consumeWhiteSpaces(r, .any);
 
     const close_tagname = try ident.parseIdent(s, r) orelse return ZmlError.ExpectedIdentifier;
+    defer s.alloc.free(close_tagname);
     if (!std.mem.eql(u8, tagname, close_tagname)) return ZmlError.UnmatchedTagName;
 
     try s.consumeWhiteSpaces(r, .any);

@@ -6,7 +6,7 @@ const zml = @import("zml");
 const xmlconf_fname = "./xml.xml";
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{ .safety = false }){};
+    var gpa = std.heap.GeneralPurposeAllocator(.{ .safety = true }){};
     defer std.debug.assert(gpa.deinit() == .ok);
 
     const alloc = gpa.allocator();
@@ -31,18 +31,11 @@ pub fn main() !void {
     var state = zml.ParseState.init(alloc);
     defer state.deinit();
 
-    const prolog, var elements = try parseDocument(alloc, filename);
-    defer if (prolog) |p| p.deinit(alloc);
-    defer {
-        var it = elements.iterator(0);
-        while (it.next()) |item| {
-            item.deinit(alloc);
-        }
-        elements.deinit(alloc);
-    }
+    var doc = try parseDocument(alloc, filename);
+    defer doc.deinit();
 
-    log.info("prolog: {?any}", .{prolog});
-    if (prolog) |p| {
+    log.info("prolog: {?any}", .{doc.prolog});
+    if (doc.prolog) |p| {
         std.debug.print("Prolog version='{s}' encoding='{s}'\n", .{ p.version, p.encoding });
     }
     {
@@ -50,10 +43,21 @@ pub fn main() !void {
         defer stdout.close();
         var buffered_writer = std.io.bufferedWriter(stdout.writer());
         const w = buffered_writer.writer();
+        _ = w; // autofix
 
-        var it = elements.iterator(0);
-        while (it.next()) |item| {
-            try zml.debug.printContent(item, w, .{});
+        for (doc.content.items[0].elem.children.items) |*item| {
+            switch (item.*) {
+                .elem => |*e| {
+                    std.debug.print("tag: {s}\n", .{e.tag});
+                },
+                .txt => |txt| {
+                    std.debug.print("text: {s}\n", .{if (txt.len > 10) txt[0..] else txt});
+                },
+                .comment => |cmt| {
+                    std.debug.print("comment: {s}\n", .{if (cmt.len > 10) cmt[0..] else cmt});
+                },
+            }
+            //try zml.debug.printContent(item, w, .{});
         }
         try buffered_writer.flush();
     }
@@ -62,10 +66,7 @@ pub fn main() !void {
     //zml.parseValue();
 }
 
-fn parseDocument(alloc: mem.Allocator, fname: []const u8) !struct {
-    ?zml.XmlProlog,
-    zml.Element.ContentList,
-} {
+fn parseDocument(alloc: mem.Allocator, fname: []const u8) !zml.Document {
     const file = try std.fs.cwd().openFile(
         fname,
         .{ .mode = .read_only },
@@ -76,23 +77,7 @@ fn parseDocument(alloc: mem.Allocator, fname: []const u8) !struct {
     var reader = std.io.bufferedReader(file.reader());
     const r = reader.reader();
 
-    try state.consumeWhiteSpaces(r, .any);
-
-    const prolog = zml.parseXmlProlog(&state, r) catch |e| {
-        log.err("Error occured at line {}, column {}", .{ state.line, state.col });
-        return e;
-    };
-    errdefer if (prolog) |p| p.deinit(alloc);
-
-    const content = zml.parseContent(&state, r) catch |e| {
-        log.err("Error occured at line {}, column {}", .{ state.line, state.col });
-        log.err("current char: {?c}", .{try state.peek(r)});
-        return e;
-    };
-
+    const doc = try zml.parseDocument(&state, r);
     //try state.consumeWhiteSpaces(r, .any);
-    return .{
-        prolog,
-        content,
-    };
+    return doc;
 }

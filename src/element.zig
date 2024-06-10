@@ -33,8 +33,8 @@ pub const ContentPart = union(enum) {
 
 pub const Element = struct {
     const Self = @This();
-    pub const AttrList = std.SegmentedList(Attr, 0);
-    pub const ContentList = std.SegmentedList(ContentPart, 0);
+    pub const AttrList = std.ArrayListUnmanaged(Attr);
+    pub const ContentList = std.ArrayListUnmanaged(ContentPart);
 
     tag: []const u8,
     attrs: AttrList,
@@ -42,19 +42,13 @@ pub const Element = struct {
     special: bool = false,
 
     pub fn deinit(self: *Self, allocator: mem.Allocator) void {
-        {
-            var it = self.attrs.iterator(0);
-            while (it.next()) |item| {
-                item.deinit(allocator);
-            }
+        for (self.attrs.items) |*item| {
+            item.deinit(allocator);
         }
         self.attrs.deinit(allocator);
 
-        {
-            var it = self.children.iterator(0);
-            while (it.next()) |item| {
-                item.deinit(allocator);
-            }
+        for (self.children.items) |*item| {
+            item.deinit(allocator);
         }
         self.children.deinit(allocator);
 

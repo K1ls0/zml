@@ -16,3 +16,5 @@ pub const ZmlError = error{
     XmlPrologEncodingVersionNotGiven,
     XmlPrologUnexpectedIdent,
 } || std.mem.Allocator.Error;
+
+pub const ParseDocumentError = error{UnexpectedTokensAfterEnd};
