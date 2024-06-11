@@ -34,6 +34,16 @@ pub fn main() !void {
     var doc = try parseDocument(alloc, filename);
     defer doc.deinit();
 
+    for (doc.content.items) |*item| {
+        var it = try zml.query.query(item, alloc, zml.query.Query{
+            .tag = "entry",
+        });
+        defer it.deinit();
+        while (try it.next()) |qitem| {
+            log.info("item: {any}", .{qitem.*});
+        }
+    }
+
     log.info("prolog: {?any}", .{doc.prolog});
     if (doc.prolog) |p| {
         std.debug.print("Prolog version='{s}' encoding='{s}'\n", .{ p.version, p.encoding });
@@ -78,6 +88,5 @@ fn parseDocument(alloc: mem.Allocator, fname: []const u8) !zml.Document {
     const r = reader.reader();
 
     const doc = try zml.parseDocument(&state, r);
-    //try state.consumeWhiteSpaces(r, .any);
     return doc;
 }

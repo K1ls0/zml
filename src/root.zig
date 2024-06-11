@@ -28,6 +28,8 @@ pub const errors = @import("error.zig");
 pub const ZmlError = errors.ZmlError;
 pub const ParseDocumentError = errors.ParseDocumentError;
 
+pub const query = @import("query.zig");
+
 test {
     _ = @import("element.zig");
     _ = @import("error.zig");
