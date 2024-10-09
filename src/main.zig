@@ -34,15 +34,10 @@ pub fn main() !void {
     var doc = try parseDocument(alloc, filename);
     defer doc.deinit();
 
-    for (doc.content.items) |*item| {
-        var it = try zml.query.query(item, alloc, zml.query.Query{
-            .tag = "entry",
-        });
-        defer it.deinit();
-        while (try it.next()) |qitem| {
-            log.info("item: {any}", .{qitem.*});
-        }
-    }
+    for (doc.getContent()) |item| switch (item) {
+        .tag => {},
+        else => {},
+    };
 
     log.info("prolog: {?any}", .{doc.prolog});
     if (doc.prolog) |p| {

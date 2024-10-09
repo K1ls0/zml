@@ -5,13 +5,19 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     // make lib
-    const lib = b.addStaticLibrary(.{
-        .name = "zml",
+    //const lib = b.addStaticLibrary(.{
+    //    .name = "zml",
+    //    .root_source_file = b.path("src/root.zig"),
+    //    .target = target,
+    //    .optimize = optimize,
+    //});
+    //b.installArtifact(lib);
+
+    const zml = b.addModule("zml", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
     });
-    b.installArtifact(lib);
 
     // make testuite exe
     const testsuite_exe = b.addExecutable(.{
@@ -21,8 +27,8 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    testsuite_exe.step.dependOn(&lib.step);
-    testsuite_exe.root_module.addImport("zml", &lib.root_module);
+    //testsuite_exe.step.dependOn(zml);
+    testsuite_exe.root_module.addImport("zml", zml);
     b.installArtifact(testsuite_exe);
     const run_cmd = b.addRunArtifact(testsuite_exe);
 

@@ -3,7 +3,6 @@ const mem = std.mem;
 
 const ZmlError = @import("error.zig").ZmlError;
 const ParseState = @import("parse_state.zig").ParseState;
-const element = @import("element.zig");
 const parseIdent = @import("ident.zig").parseIdent;
 const parseString = @import("string.zig").parseString;
 
@@ -37,8 +36,8 @@ pub const Element = struct {
     pub const ContentList = std.ArrayListUnmanaged(ContentPart);
 
     tag: []const u8,
-    attrs: AttrList,
-    children: ContentList,
+    attrs: AttrList = .{},
+    children: ContentList = .{},
     special: bool = false,
 
     pub fn deinit(self: *Self, allocator: mem.Allocator) void {

@@ -28,20 +28,6 @@ pub const errors = @import("error.zig");
 pub const ZmlError = errors.ZmlError;
 pub const ParseDocumentError = errors.ParseDocumentError;
 
-pub const query = @import("query.zig");
-
-test {
-    _ = @import("element.zig");
-    _ = @import("error.zig");
-    _ = @import("ident.zig");
-    _ = @import("parse_state.zig");
-    _ = @import("root.zig");
-    _ = @import("string.zig");
-    _ = @import("token.zig");
-    _ = @import("xmlspec.zig");
-    _ = @import("debug.zig");
-}
-
 test "zml.simple_parse" {
     const DATA =
         \\ <Testtag a="aa" a-b-c="ab&amp;c"  a_b_c="abc"/>
@@ -123,4 +109,16 @@ test "zml.simple_parse" {
             }
         }
     }
+}
+
+test {
+    _ = @import("element.zig");
+    _ = @import("error.zig");
+    _ = @import("ident.zig");
+    _ = @import("parse_state.zig");
+    _ = @import("root.zig");
+    _ = @import("string.zig");
+    _ = @import("token.zig");
+    _ = @import("xmlspec.zig");
+    _ = @import("debug.zig");
 }

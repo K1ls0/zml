@@ -31,6 +31,14 @@ pub const Document = struct {
         }
         self.content.deinit(self.allocator);
     }
+
+    pub inline fn getContent(self: *const Document) []const ContentPart {
+        return self.content.items;
+    }
+
+    pub inline fn getContentMut(self: *Document) []ContentPart {
+        return self.content.items;
+    }
 };
 
 pub fn parseDocument(
