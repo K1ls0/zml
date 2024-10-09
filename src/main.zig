@@ -35,7 +35,9 @@ pub fn main() !void {
     defer doc.deinit();
 
     for (doc.getContent()) |item| switch (item) {
-        .tag => {},
+        .elem => |elem| {
+            _ = elem; // autofix
+        },
         else => {},
     };
 
