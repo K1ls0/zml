@@ -53,6 +53,57 @@ pub const Element = struct {
 
         allocator.free(self.tag);
     }
+
+    pub fn getChildren(self: *const Element) []const ContentPart {
+        return self.children.items;
+    }
+    pub fn getChildrenMut(self: *Element) []ContentPart {
+        return self.children.items;
+    }
+
+    pub fn getAttr(self: *const Element, attr: []const u8) ![]const u8 {
+        for (self.attrs.items) |item| {
+            if (std.ascii.eqlIgnoreCase(item.name, attr)) {
+                return item.value;
+            }
+        }
+        return error.NoAttrPresent;
+    }
+
+    pub fn getDirectChildByTag(self: *const Element, child_tag: []const u8) DirectChildIterator {
+        return DirectChildIterator{
+            .element = self,
+            .idx = 0,
+            .tag_to_match = child_tag,
+        };
+    }
+
+    pub fn getOneChild(self: *const Element, child_tag: []const u8) !*const Element {
+        var it = self.getDirectChildByTag(child_tag);
+        const res = it.next();
+        std.debug.assert(it.next() == null);
+        return res orelse return error.NoChildPresent;
+    }
+};
+
+pub const DirectChildIterator = struct {
+    element: *const Element,
+    idx: usize,
+    tag_to_match: []const u8,
+
+    pub fn next(self: *DirectChildIterator) ?*const Element {
+        for (self.element.children.items[self.idx..]) |*item| {
+            self.idx += 1;
+
+            switch (item.*) {
+                .elem => |*el| if (std.ascii.eqlIgnoreCase(el.tag, self.tag_to_match)) {
+                    return el;
+                },
+                else => {},
+            }
+        }
+        return null;
+    }
 };
 
 //pub fn parseElement(parse_state: *ParseState, reader: anytype, alloc: mem.Allocator) !*Element {
