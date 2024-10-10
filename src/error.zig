@@ -9,6 +9,7 @@ pub const ZmlError = error{
     ExpectedAttribValSep,
     ExpectedEndOfTag,
     Syntax,
+    DuplicateAttributes,
     UnexpectedEndOfString,
     ExpectedIdentifier,
     UnmatchedTagName,

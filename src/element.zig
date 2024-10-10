@@ -32,7 +32,7 @@ pub const ContentPart = union(enum) {
 
 pub const Element = struct {
     const Self = @This();
-    pub const AttrList = std.ArrayListUnmanaged(Attr);
+    pub const AttrList = std.StringHashMapUnmanaged([]const u8);
     pub const ContentList = std.ArrayListUnmanaged(ContentPart);
 
     tag: []const u8,
@@ -41,8 +41,12 @@ pub const Element = struct {
     special: bool = false,
 
     pub fn deinit(self: *Self, allocator: mem.Allocator) void {
-        for (self.attrs.items) |*item| {
-            item.deinit(allocator);
+        {
+            var it = self.attrs.iterator();
+            while (it.next()) |entry| {
+                allocator.free(entry.value_ptr.*);
+                allocator.free(entry.key_ptr.*);
+            }
         }
         self.attrs.deinit(allocator);
 
@@ -61,13 +65,9 @@ pub const Element = struct {
         return self.children.items;
     }
 
-    pub fn getAttr(self: *const Element, attr: []const u8) ![]const u8 {
-        for (self.attrs.items) |item| {
-            if (std.ascii.eqlIgnoreCase(item.name, attr)) {
-                return item.value;
-            }
-        }
-        return error.NoAttrPresent;
+    pub inline fn getAttr(self: *const Element, attr: []const u8) ![]const u8 {
+        const cattr: []const u8 = self.attrs.get(attr) orelse return error.AttrNotPresent;
+        return cattr;
     }
 
     pub fn getDirectChildByTag(self: *const Element, child_tag: []const u8) DirectChildIterator {
@@ -83,6 +83,14 @@ pub const Element = struct {
         const res = it.next();
         std.debug.assert(it.next() == null);
         return res orelse return error.NoChildPresent;
+    }
+
+    pub fn getTextChild(self: *const Element) ![]const u8 {
+        if (self.children.items.len != 1) return error.ExpectedOneChild;
+        switch (self.children.items[0]) {
+            .txt => |s| return s,
+            else => return error.ExpectedText,
+        }
     }
 };
 
