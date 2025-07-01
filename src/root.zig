@@ -14,6 +14,7 @@ pub const parseXmlProlog = parse_state.parseXmlProlog;
 
 const element = @import("element.zig");
 pub const Element = element.Element;
+pub const Filter = element.Filter;
 pub const Attr = element.Attr;
 pub const ContentPart = element.ContentPart;
 
@@ -27,6 +28,79 @@ pub const parseDocument = document.parseDocument;
 pub const errors = @import("error.zig");
 pub const ZmlError = errors.ZmlError;
 pub const ParseDocumentError = errors.ParseDocumentError;
+
+test "zml.simple_iterator" {
+    const data =
+        \\<document>
+        \\  <Testtag1 b="bb"></Testtag1>
+        \\  <Testtag2 a="aa"></Testtag2>
+        \\  <Testtag3></Testtag3>
+        \\  <Testtag4 b="bc"></Testtag4>
+        \\</document>
+    ;
+    var bs = std.io.fixedBufferStream(data);
+    const r = bs.reader();
+
+    var ps = ParseState.init(testing.allocator);
+    defer ps.deinit();
+
+    var res: Element.ContentList = try parseContent(&ps, r);
+    defer {
+        for (res.items) |*item| {
+            item.deinit(testing.allocator);
+        }
+        res.deinit(testing.allocator);
+    }
+
+    {
+        var it = res.items[0].elem.childIterator(null);
+        const first = it.next();
+        try testing.expect(first != null);
+        try testing.expect(first.?.* == .elem);
+        try testing.expectEqualStrings("Testtag1", first.?.elem.tag);
+        const second = it.next();
+        try testing.expect(second != null);
+        try testing.expect(second.?.* == .elem);
+        try testing.expectEqualStrings("Testtag2", second.?.elem.tag);
+        const third = it.next();
+        try testing.expect(third != null);
+        try testing.expect(third.?.* == .elem);
+        try testing.expectEqualStrings("Testtag3", third.?.elem.tag);
+        const fourth = it.next();
+        try testing.expect(fourth != null);
+        try testing.expect(fourth.?.* == .elem);
+        try testing.expectEqualStrings("Testtag4", fourth.?.elem.tag);
+        const fifth = it.next();
+        try testing.expect(fifth == null);
+    }
+    {
+        var it = res.items[0].elem.childIterator(Filter{
+            .attribute_name = "b",
+            .attribute_value = "bc",
+        });
+
+        const first = it.next();
+        try testing.expect(first != null);
+        try testing.expect(first.?.* == .elem);
+        try testing.expectEqualStrings("Testtag4", first.?.elem.tag);
+        try testing.expect(first.?.elem.getAttr("b") != null);
+        try testing.expectEqualStrings("bc", first.?.elem.getAttr("b").?);
+        const second = it.next();
+        try testing.expect(second == null);
+    }
+    {
+        var it = res.items[0].elem.childIterator(Filter{
+            .tag = "Testtag3",
+        });
+
+        const first = it.next();
+        try testing.expect(first != null);
+        try testing.expect(first.?.* == .elem);
+        try testing.expectEqualStrings("Testtag3", first.?.elem.tag);
+        const second = it.next();
+        try testing.expect(second == null);
+    }
+}
 
 test "zml.simple_parse" {
     const DATA =

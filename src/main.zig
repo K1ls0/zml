@@ -3,7 +3,7 @@ const mem = std.mem;
 const log = std.log;
 const zml = @import("zml");
 
-const xmlconf_fname = "./xml.xml";
+const xmlconf_fname = "./plasma.xml";
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{ .safety = true }){};
@@ -52,10 +52,15 @@ pub fn main() !void {
         const w = buffered_writer.writer();
         _ = w; // autofix
 
-        for (doc.content.items[0].elem.children.items) |*item| {
+        for (doc.content.items) |*item| {
             switch (item.*) {
                 .elem => |*e| {
                     std.debug.print("tag: {s}\n", .{e.tag});
+                    const t2 = e.getOneChild("tag2").?;
+                    log.info("t2: {any}", .{t2.children.items});
+
+                    const tend = e.getOneChild("tagEnd").?;
+                    log.info("tend: {any}", .{tend.attrs.items});
                 },
                 .txt => |txt| {
                     std.debug.print("text: {s}\n", .{if (txt.len > 10) txt[0..] else txt});

@@ -184,7 +184,10 @@ pub fn parseComment(s: *ParseState, r: anytype) (ZmlError || @TypeOf(r).Error)!?
 pub fn parseTag(s: *ParseState, r: anytype) (ZmlError || @TypeOf(r).Error)!?element.Element {
     if ((try s.peek(r) orelse return null) != '<') return null;
     switch (try s.peek2(r) orelse return null) {
-        '/', '?', '!' => return null,
+        '!' => {
+            log.info("Got ! tag", .{});
+        },
+        '/', '?' => return null,
         else => {},
     }
     if (!try s.consumeChar(r, '<')) return null;
