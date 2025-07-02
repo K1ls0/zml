@@ -60,7 +60,7 @@ pub fn main() !void {
                     log.info("t2: {any}", .{t2.children.items});
 
                     const tend = e.getOneChild("tagEnd").?;
-                    log.info("tend: {any}", .{tend.attrs.items});
+                    log.info("tend: {any}", .{tend.attrs});
                 },
                 .txt => |txt| {
                     std.debug.print("text: {s}\n", .{if (txt.len > 10) txt[0..] else txt});

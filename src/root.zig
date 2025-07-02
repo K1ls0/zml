@@ -118,7 +118,7 @@ test "zml.simple_parse" {
     const r = bs.reader();
     var ps = ParseState.init(testing.allocator);
     defer ps.deinit();
-    var res = try parseContent(&ps, r);
+    var res: Element.ContentList = try parseContent(&ps, r);
     defer {
         for (res.items) |*item| {
             item.deinit(testing.allocator);
@@ -131,10 +131,10 @@ test "zml.simple_parse" {
             try testing.expect(res.items[0] == .elem);
             try testing.expectEqualStrings("Testtag", res.items[0].elem.tag);
             {
-                try testing.expectEqual(3, res.items[0].elem.attrs.items.len);
-                try testing.expectEqualDeep(Attr{ .name = "a", .value = "aa" }, res.items[0].elem.attrs.items[0]);
-                try testing.expectEqualDeep(Attr{ .name = "a-b-c", .value = "ab&c" }, res.items[0].elem.attrs.items[1]);
-                try testing.expectEqualDeep(Attr{ .name = "a_b_c", .value = "abc" }, res.items[0].elem.attrs.items[2]);
+                try testing.expectEqual(3, res.items[0].elem.attrs.size);
+                try testing.expectEqualDeep("aa", res.items[0].elem.attrs.get("a"));
+                try testing.expectEqualDeep("ab&c", res.items[0].elem.attrs.get("a-b-c"));
+                try testing.expectEqualDeep("abc", res.items[0].elem.attrs.get("a_b_c"));
             }
             try testing.expectEqual(false, res.items[0].elem.special);
             try testing.expectEqual(0, res.items[0].elem.children.items.len);
@@ -143,7 +143,7 @@ test "zml.simple_parse" {
         {
             try testing.expect(res.items[1] == .elem);
             try testing.expectEqualStrings("outertag", res.items[1].elem.tag);
-            try testing.expectEqual(0, res.items[1].elem.attrs.items.len);
+            try testing.expectEqual(0, res.items[1].elem.attrs.size);
             try testing.expectEqual(2, res.items[1].elem.children.items.len);
             {
                 const item = res.items[1].elem.children.items[0];
@@ -151,8 +151,8 @@ test "zml.simple_parse" {
                 try testing.expectEqualStrings("innertag0", item.elem.tag);
                 try testing.expectEqual(false, item.elem.special);
                 {
-                    try testing.expectEqual(1, item.elem.attrs.items.len);
-                    try testing.expectEqualDeep(Attr{ .name = "a", .value = "bb" }, item.elem.attrs.items[0]);
+                    try testing.expectEqual(1, item.elem.attrs.size);
+                    try testing.expectEqualDeep("bb", item.elem.attrs.get("a"));
                 }
                 {
                     try testing.expectEqual(1, item.elem.children.items.len);
@@ -169,8 +169,8 @@ test "zml.simple_parse" {
                 try testing.expectEqualStrings("innertag1", item.elem.tag);
                 try testing.expectEqual(false, item.elem.special);
                 {
-                    try testing.expectEqual(1, item.elem.attrs.items.len);
-                    try testing.expectEqualDeep(Attr{ .name = "a", .value = "cc" }, item.elem.attrs.items[0]);
+                    try testing.expectEqual(1, item.elem.attrs.size);
+                    try testing.expectEqualDeep("cc", item.elem.attrs.get("a"));
                 }
                 {
                     try testing.expectEqual(1, item.elem.children.items.len);

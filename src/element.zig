@@ -45,7 +45,7 @@ pub const ContentPart = union(ContentPartTag) {
 
 pub const Element = struct {
     const Self = @This();
-    pub const AttrList = std.ArrayListUnmanaged(Attr);
+    pub const AttrList = std.StringHashMapUnmanaged([]const u8);
     pub const ContentList = std.ArrayListUnmanaged(ContentPart);
 
     tag: []const u8,
@@ -54,8 +54,12 @@ pub const Element = struct {
     special: bool = false,
 
     pub fn deinit(self: *Self, allocator: mem.Allocator) void {
-        for (self.attrs.items) |*item| {
-            item.deinit(allocator);
+        {
+            var it = self.attrs.iterator();
+            while (it.next()) |entry| {
+                allocator.free(entry.value_ptr.*);
+                allocator.free(entry.key_ptr.*);
+            }
         }
         self.attrs.deinit(allocator);
 
@@ -68,10 +72,7 @@ pub const Element = struct {
     }
 
     pub fn getAttr(self: Self, name: []const u8) ?[]const u8 {
-        for (self.attrs.items) |attr| {
-            if (std.mem.eql(u8, attr.name, name)) return attr.value;
-        }
-        return null;
+        return self.attrs.get(name);
     }
 
     pub fn getDirectChildByTag(self: *const Self, tag: []const u8) ElementChildIterator {
@@ -162,11 +163,12 @@ pub const Filter = struct {
                 }
                 if (self.attribute_name) |attribute_name| {
                     var any_attr_matches = false;
-                    for (elem.attrs.items) |attr| {
+                    var it = elem.attrs.iterator();
+                    while (it.next()) |entry| {
                         any_attr_matches = false;
-                        if (self.strMatches(attribute_name, attr.name)) any_attr_matches = true;
+                        if (self.strMatches(attribute_name, entry.key_ptr.*)) any_attr_matches = true;
                         if (self.attribute_value) |attribute_value| if (any_attr_matches) {
-                            any_attr_matches = self.strMatches(attribute_value, attr.value);
+                            any_attr_matches = self.strMatches(attribute_value, entry.value_ptr.*);
                         };
                         if (any_attr_matches) break;
                     }
@@ -184,6 +186,12 @@ pub const Filter = struct {
         } else {
             return std.ascii.eqlIgnoreCase(a, b);
         }
+    }
+    pub fn getChildren(self: *const Element) []const ContentPart {
+        return self.children.items;
+    }
+    pub fn getChildrenMut(self: *Element) []ContentPart {
+        return self.children.items;
     }
 };
 

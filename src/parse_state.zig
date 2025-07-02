@@ -219,10 +219,10 @@ pub fn parseTag(s: *ParseState, r: anytype) (ZmlError || @TypeOf(r).Error)!?elem
         };
         errdefer s.alloc.free(attrvalue);
 
-        try attributes.append(s.alloc, .{
-            .name = attrname,
-            .value = attrvalue,
-        });
+        const res = try attributes.getOrPut(s.alloc, attrname);
+        if (res.found_existing) return ZmlError.DuplicateAttributes;
+        res.key_ptr.* = attrname;
+        res.value_ptr.* = attrvalue;
     }
 
     if (try s.consumeChar(r, '/')) {
